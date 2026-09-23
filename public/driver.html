@@ -6,29 +6,48 @@
   <style>
     body { font-family: Arial, sans-serif; max-width: 420px; margin: 40px auto; padding: 0 20px; }
     h1 { font-size: 20px; }
-    select { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
+    select, input { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
     button { padding: 10px 20px; background: #D9482B; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px; }
     .wallet { background: #12303D; color: #fff; padding: 16px; border-radius: 10px; margin-top: 10px; }
     .wallet .amount { font-size: 24px; font-weight: bold; }
     #trip { margin-top: 20px; padding: 14px; background: #F7F2E8; border-radius: 8px; display:none; }
     .empty { text-align:center; color:#888; margin-top:30px; }
     a { display:block; margin-top: 20px; color:#2C6E8C; }
+    #loginError { color: #C0392B; margin-top: 8px; display:none; }
+    #logoutBtn { background: #999; margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h1>واجهة السائق</h1>
 
-  <label>اختر نفسك من القائمة (للتجربة فقط)</label>
-  <select id="driverSelect" onchange="loadDriver()"></select>
+  <!-- شاشة الدخول -->
+  <div id="loginScreen">
+    <h1>دخول السائق</h1>
 
-  <div class="wallet">
-    <div>رصيد المحفظة</div>
-    <div class="amount" id="walletAmount">—</div>
-    <div id="tripsCount" style="font-size:12px; margin-top:6px;"></div>
+    <label>اختر اسمك</label>
+    <select id="driverSelect"></select>
+
+    <label>الرمز السري (4 أرقام)</label>
+    <input type="text" id="pinInput" maxlength="4" placeholder="****">
+
+    <button onclick="login()">دخول</button>
+    <div id="loginError">الرمز السري غير صحيح، حاول مرة ثانية.</div>
   </div>
 
-  <div id="trip"></div>
-  <div id="emptyMsg" class="empty" style="display:none;">لا يوجد طلب حالياً</div>
+  <!-- لوحة السائق (تظهر فقط بعد الدخول الصحيح) -->
+  <div id="dashboard" style="display:none;">
+    <h1>أهلاً <span id="driverNameLabel"></span></h1>
+
+    <div class="wallet">
+      <div>رصيد المحفظة</div>
+      <div class="amount" id="walletAmount">—</div>
+      <div id="tripsCount" style="font-size:12px; margin-top:6px;"></div>
+    </div>
+
+    <div id="trip"></div>
+    <div id="emptyMsg" class="empty" style="display:none;">لا يوجد طلب حالياً</div>
+
+    <button id="logoutBtn" onclick="logout()">تسجيل الخروج</button>
+  </div>
 
   <a href="/index.html">← صفحة تسجيل السائقين</a>
   <a href="/trip.html">← صفحة طلب رحلة (كراكب)</a>
@@ -38,24 +57,50 @@
     let myId = null;
     let pollTimer = null;
 
-    async function init() {
+    async function initLogin() {
       allDrivers = await (await fetch("/api/drivers")).json();
       const select = document.getElementById("driverSelect");
       select.innerHTML = allDrivers.map(d => `<option value="${d.id}">${d.name}</option>`).join("");
-      if (allDrivers.length) {
-        myId = allDrivers[0].id;
-        loadDriver();
+    }
+
+    async function login() {
+      const id = document.getElementById("driverSelect").value;
+      const pin = document.getElementById("pinInput").value;
+
+      const res = await fetch("/api/drivers/" + id + "/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin })
+      });
+
+      if (!res.ok) {
+        document.getElementById("loginError").style.display = "block";
+        return;
       }
+
+      document.getElementById("loginError").style.display = "none";
+      myId = id;
+      const me = allDrivers.find(d => d.id === id);
+      document.getElementById("driverNameLabel").innerText = me ? me.name : "";
+
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+
+      refresh();
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(refresh, 2000);
     }
 
-    function loadDriver() {
-      myId = document.getElementById("driverSelect").value;
-      refresh();
+    function logout() {
+      myId = null;
+      if (pollTimer) clearInterval(pollTimer);
+      document.getElementById("pinInput").value = "";
+      document.getElementById("dashboard").style.display = "none";
+      document.getElementById("loginScreen").style.display = "block";
     }
 
     async function refresh() {
+      if (!myId) return;
       const drivers = await (await fetch("/api/drivers")).json();
       const me = drivers.find(d => d.id === myId);
       if (!me) return;
@@ -102,7 +147,7 @@
       refresh();
     }
 
-    init();
+    initLogin();
   </script>
 </body>
 </html>

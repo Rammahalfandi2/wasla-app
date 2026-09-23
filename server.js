@@ -9,24 +9,42 @@ app.use(express.static("public"));
 
 // ------- السائقون -------
 
+// جلب كل السائقين (بدون الرمز السري أبداً)
 app.get("/api/drivers", (req, res) => {
-  res.json(db.get("drivers").value());
+  const drivers = db.get("drivers").value().map((d) => {
+    const { pin, ...safeData } = d; // نشيل الرمز السري قبل الإرسال
+    return safeData;
+  });
+  res.json(drivers);
 });
 
+// إضافة سائق جديد
 app.post("/api/drivers", (req, res) => {
   const newDriver = {
     id: Date.now().toString(),
     name: req.body.name,
     car: req.body.car,
+    pin: req.body.pin,
     online: false,
-    wallet: 30000, // نبدأ كل سائق برصيد تجريبي بسيط
+    wallet: 30000,
     trips: 0,
     currentTripId: null
   };
   db.get("drivers").push(newDriver).write();
-  res.json(newDriver);
+  res.json({ id: newDriver.id, name: newDriver.name, car: newDriver.car });
 });
 
+// تسجيل دخول السائق (اسم + رمز سري)
+app.post("/api/drivers/:id/login", (req, res) => {
+  const driver = db.get("drivers").find({ id: req.params.id }).value();
+  if (!driver) return res.status(404).json({ error: "السائق غير موجود" });
+  if (driver.pin !== req.body.pin) {
+    return res.status(401).json({ error: "الرمز السري غير صحيح" });
+  }
+  res.json({ success: true });
+});
+
+// تبديل حالة السائق (متصل / غير متصل)
 app.patch("/api/drivers/:id/online", (req, res) => {
   const driver = db.get("drivers").find({ id: req.params.id }).value();
   if (!driver) return res.status(404).json({ error: "السائق غير موجود" });
@@ -87,7 +105,6 @@ app.patch("/api/trips/:id/status", (req, res) => {
 
   db.get("trips").find({ id: req.params.id }).assign({ status: req.body.status }).write();
 
-  // لما تنتهي الرحلة: نخصم العمولة من محفظة السائق، ونحرره لرحلة جديدة
   if (req.body.status === "completed" && trip.driverId) {
     const driver = db.get("drivers").find({ id: trip.driverId }).value();
     db.get("drivers").find({ id: trip.driverId }).assign({
