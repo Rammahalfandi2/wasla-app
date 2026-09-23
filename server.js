@@ -1,7 +1,7 @@
 const express = require("express");
 const db = require("./db");
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const COMMISSION_RATE = 0.12; // نسبة عمولة وصلة من كل رحلة (12%)
 
 app.use(express.json());
