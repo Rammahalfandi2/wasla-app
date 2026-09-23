@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>وصلة - لوحة التحكم</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 20px; color:#12303D; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 16px; margin-top: 34px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+    .stat-card { background: #F7F2E8; border-radius: 10px; padding: 14px; text-align: center; }
+    .stat-card .num { font-size: 22px; font-weight: bold; color: #D9482B; }
+    .stat-card .lbl { font-size: 12px; color: #555; margin-top: 4px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #eee; }
+    th { background: #F7F2E8; font-size: 12px; }
+
+    .badge { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: bold; }
+    .badge.on { background: #E9F0DD; color: #41531F; }
+    .badge.off { background: #EFE7D6; color: #7A6E56; }
+    .status { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: bold; background:#eee; }
+
+    a { display:block; margin-top: 24px; color:#2C6E8C; }
+
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <h1>لوحة تحكم وصلة</h1>
+
+  <div class="stats">
+    <div class="stat-card"><div class="num" id="statTrips">—</div><div class="lbl">رحلات مكتملة</div></div>
+    <div class="stat-card"><div class="num" id="statCommission">—</div><div class="lbl">إجمالي العمولات</div></div>
+    <div class="stat-card"><div class="num" id="statDrivers">—</div><div class="lbl">إجمالي السائقين</div></div>
+    <div class="stat-card"><div class="num" id="statOnline">—</div><div class="lbl">متصلون الآن</div></div>
+  </div>
+
+  <h2>السائقون</h2>
+  <table>
+    <thead>
+      <tr><th>الاسم</th><th>السيارة</th><th>الحالة</th><th>الرصيد</th><th>عدد الرحلات</th></tr>
+    </thead>
+    <tbody id="driversTable"></tbody>
+  </table>
+
+  <h2>الرحلات</h2>
+  <table>
+    <thead>
+      <tr><th>الراكب</th><th>من</th><th>إلى</th><th>السائق</th><th>الأجرة</th><th>العمولة</th><th>الدفع</th><th>الحالة</th></tr>
+    </thead>
+    <tbody id="tripsTable"></tbody>
+  </table>
+
+  <a href="/index.html">← صفحة تسجيل السائقين</a>
+  <a href="/trip.html">← صفحة طلب رحلة (كراكب)</a>
+  <a href="/driver.html">← واجهة السائق</a>
+
+  <script>
+    const STATUS_LABELS = {
+      no_driver: "لا يوجد سائق",
+      assigned: "بانتظار السائق",
+      arriving: "السائق بالطريق",
+      arrived: "السائق وصل",
+      ontrip: "الرحلة جارية",
+      completed: "مكتملة"
+    };
+    const PAYMENT_LABELS = { cash: "نقداً", sham: "شام كاش", syriatel: "سيرياتيل كاش", mtn: "MTN كاش" };
+
+    async function loadAdmin() {
+      const drivers = await (await fetch("/api/drivers")).json();
+      const trips = await (await fetch("/api/trips")).json();
+
+      const completedTrips = trips.filter(t => t.status === "completed");
+      const totalCommission = completedTrips.reduce((sum, t) => sum + t.commission, 0);
+      const onlineCount = drivers.filter(d => d.online).length;
+
+      document.getElementById("statTrips").innerText = completedTrips.length;
+      document.getElementById("statCommission").innerText = totalCommission.toLocaleString("ar-SY") + " ل.س";
+      document.getElementById("statDrivers").innerText = drivers.length;
+      document.getElementById("statOnline").innerText = onlineCount;
+
+      const driversBody = document.getElementById("driversTable");
+      driversBody.innerHTML = drivers.map(d => `
+        <tr>
+          <td>${d.name}</td>
+          <td>${d.car}</td>
+          <td><span class="badge ${d.online ? 'on' : 'off'}">${d.online ? 'متصل' : 'غير متصل'}</span></td>
+          <td>${d.wallet.toLocaleString("ar-SY")} ل.س</td>
+          <td>${d.trips || 0}</td>
+        </tr>
+      `).join("");
+
+      const tripsBody = document.getElementById("tripsTable");
+      tripsBody.innerHTML = trips.map(t => {
+        const driver = drivers.find(d => d.id === t.driverId);
+        return `
+          <tr>
+            <td>${t.riderName}</td>
+            <td>${t.pickup}</td>
+            <td>${t.dropoff}</td>
+            <td>${driver ? driver.name : "—"}</td>
+            <td>${t.fare.toLocaleString("ar-SY")} ل.س</td>
+            <td>${t.commission.toLocaleString("ar-SY")} ل.س</td>
+            <td>${PAYMENT_LABELS[t.payment] || t.payment}</td>
+            <td><span class="status">${STATUS_LABELS[t.status] || t.status}</span></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    loadAdmin();
+    setInterval(loadAdmin, 3000); // تحديث تلقائي كل 3 ثواني
+  </script>
+</body>
+</html>
