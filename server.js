@@ -3,6 +3,30 @@ const db = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const COMMISSION_RATE = 0.12; // نسبة عمولة وصلة من كل رحلة (12%)
+// ------- حماية صفحات الإدارة بكلمة مرور -------
+const ADMIN_USER = "Rammah";
+const ADMIN_PASS = "425988Rammah@"; // غيّرها لكلمة مرور من اختيارك
+
+function requireAdminAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.set("WWW-Authenticate", 'Basic realm="Wasla Admin"');
+    return res.status(401).send("يلزم تسجيل الدخول");
+  }
+  const base64Credentials = authHeader.split(" ")[1];
+  const credentials = Buffer.from(base64Credentials, "base64").toString("utf-8");
+  const [user, pass] = credentials.split(":");
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    return next(); // كلمة المرور صحيحة، كمّل عادي
+  }
+  res.set("WWW-Authenticate", 'Basic realm="Wasla Admin"');
+  return res.status(401).send("بيانات الدخول غير صحيحة");
+}
+
+// نطبّق الحماية على صفحة تسجيل السائقين ولوحة التحكم فقط
+app.get("/index.html", requireAdminAuth, (req, res, next) => next());
+app.get("/admin.html", requireAdminAuth, (req, res, next) => next());
+app.post("/api/drivers", requireAdminAuth, (req, res, next) => next());
 
 app.use(express.json());
 app.use(express.static("public"));
