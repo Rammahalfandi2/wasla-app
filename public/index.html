@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>وصلة - تسجيل سائق</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 20px; }
+    input { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
+    button { padding: 10px 18px; background: #D9482B; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    #result { margin-top: 12px; color: green; }
+    li { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #ddd; list-style: none; }
+    .on-btn { background: #5C7A3A; padding: 6px 12px; font-size: 12px; }
+    .off-btn { background: #999; padding: 6px 12px; font-size: 12px; }
+    a { display:block; margin-top: 20px; color:#2C6E8C; }
+  </style>
+</head>
+<body>
+  <h1>تسجيل سائق جديد</h1>
+
+  <label>اسم السائق</label>
+  <input type="text" id="name" placeholder="مثال: أبو محمد">
+
+  <label>نوع السيارة</label>
+  <input type="text" id="car" placeholder="مثال: كيا بيكانتو 2015">
+
+  <button onclick="addDriver()">إضافة السائق</button>
+  <div id="result"></div>
+
+  <h2>قائمة السائقين</h2>
+  <ul id="driversList"></ul>
+
+  <a href="/trip.html">← اذهب لصفحة طلب رحلة (كراكب)</a>
+
+  <script>
+    async function addDriver() {
+      const name = document.getElementById("name").value;
+      const car = document.getElementById("car").value;
+      await fetch("/api/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, car })
+      });
+      document.getElementById("result").innerText = "تمت إضافة السائق بنجاح!";
+      document.getElementById("name").value = "";
+      document.getElementById("car").value = "";
+      loadDrivers();
+    }
+
+    async function toggleOnline(id, current) {
+      await fetch("/api/drivers/" + id + "/online", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ online: !current })
+      });
+      loadDrivers();
+    }
+
+    async function loadDrivers() {
+      const drivers = await (await fetch("/api/drivers")).json();
+      const list = document.getElementById("driversList");
+      list.innerHTML = "";
+      drivers.forEach(function(d) {
+        const li = document.createElement("li");
+        li.innerHTML = "<span>" + d.name + " - " + d.car + "</span>";
+        const btn = document.createElement("button");
+        btn.innerText = d.online ? "متصل ✓" : "غير متصل";
+        btn.className = d.online ? "on-btn" : "off-btn";
+        btn.onclick = function() { toggleOnline(d.id, d.online); };
+        li.appendChild(btn);
+        list.appendChild(li);
+      });
+    }
+
+    loadDrivers();
+  </script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>وصلة - واجهة السائق</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 420px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 20px; }
+    select { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
+    button { padding: 10px 20px; background: #D9482B; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 8px; }
+    .wallet { background: #12303D; color: #fff; padding: 16px; border-radius: 10px; margin-top: 10px; }
+    .wallet .amount { font-size: 24px; font-weight: bold; }
+    #trip { margin-top: 20px; padding: 14px; background: #F7F2E8; border-radius: 8px; display:none; }
+    .empty { text-align:center; color:#888; margin-top:30px; }
+    a { display:block; margin-top: 20px; color:#2C6E8C; }
+  </style>
+</head>
+<body>
+  <h1>واجهة السائق</h1>
+
+  <label>اختر نفسك من القائمة (للتجربة فقط)</label>
+  <select id="driverSelect" onchange="loadDriver()"></select>
+
+  <div class="wallet">
+    <div>رصيد المحفظة</div>
+    <div class="amount" id="walletAmount">—</div>
+    <div id="tripsCount" style="font-size:12px; margin-top:6px;"></div>
+  </div>
+
+  <div id="trip"></div>
+  <div id="emptyMsg" class="empty" style="display:none;">لا يوجد طلب حالياً</div>
+
+  <a href="/index.html">← صفحة تسجيل السائقين</a>
+  <a href="/trip.html">← صفحة طلب رحلة (كراكب)</a>
+
+  <script>
+    let allDrivers = [];
+    let myId = null;
+    let pollTimer = null;
+
+    async function init() {
+      allDrivers = await (await fetch("/api/drivers")).json();
+      const select = document.getElementById("driverSelect");
+      select.innerHTML = allDrivers.map(d => `<option value="${d.id}">${d.name}</option>`).join("");
+      if (allDrivers.length) {
+        myId = allDrivers[0].id;
+        loadDriver();
+      }
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(refresh, 2000);
+    }
+
+    function loadDriver() {
+      myId = document.getElementById("driverSelect").value;
+      refresh();
+    }
+
+    async function refresh() {
+      const drivers = await (await fetch("/api/drivers")).json();
+      const me = drivers.find(d => d.id === myId);
+      if (!me) return;
+
+      document.getElementById("walletAmount").innerText = me.wallet.toLocaleString("ar-SY") + " ل.س";
+      document.getElementById("tripsCount").innerText = "عدد الرحلات المنجزة: " + (me.trips || 0);
+
+      const tripBox = document.getElementById("trip");
+      const emptyMsg = document.getElementById("emptyMsg");
+
+      if (!me.currentTripId) {
+        tripBox.style.display = "none";
+        emptyMsg.style.display = "block";
+        return;
+      }
+
+      const trips = await (await fetch("/api/trips")).json();
+      const trip = trips.find(t => t.id === me.currentTripId);
+      if (!trip) return;
+
+      emptyMsg.style.display = "none";
+      tripBox.style.display = "block";
+
+      const nextStepBtn = {
+        assigned: { label: "قبول الطلب والتوجه للانطلاق", next: "arriving" },
+        arriving: { label: "وصلت لنقطة الانطلاق", next: "arrived" },
+        arrived: { label: "بدء الرحلة", next: "ontrip" },
+        ontrip: { label: "إنهاء الرحلة", next: "completed" }
+      }[trip.status];
+
+      tripBox.innerHTML =
+        "<b>راكب:</b> " + trip.riderName + "<br>" +
+        "<b>من:</b> " + trip.pickup + " ← <b>إلى:</b> " + trip.dropoff + "<br>" +
+        "<b>الأجرة:</b> " + trip.fare + " ل.س &nbsp; <b>عمولتنا:</b> " + trip.commission + " ل.س<br>" +
+        (nextStepBtn ? `<button onclick="advance('${trip.id}','${nextStepBtn.next}')">${nextStepBtn.label}</button>` : "");
+    }
+
+    async function advance(tripId, nextStatus) {
+      await fetch("/api/trips/" + tripId + "/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      refresh();
+    }
+
+    init();
+  </script>
+</body>
+</html>

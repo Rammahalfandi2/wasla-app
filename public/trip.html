@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>وصلة - اطلب رحلة</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 420px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 20px; }
+    input, select { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
+    button { padding: 10px 20px; background: #D9482B; color: white; border: none; border-radius: 6px; cursor: pointer; width: 100%; }
+    #status { margin-top: 20px; padding: 14px; background: #F7F2E8; border-radius: 8px; display:none; }
+    a { display:block; margin-top: 20px; color:#2C6E8C; }
+  </style>
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <h1>اطلب رحلتك</h1>
+
+  <label>نقطة الانطلاق</label>
+  <select id="pickup">
+    <option>وسط المدينة</option>
+    <option>الصليبة</option>
+    <option>الزراعة</option>
+    <option>الشاطئ الأزرق</option>
+    <option>الرمل الجنوبي</option>
+  </select>
+
+  <label>الوجهة</label>
+  <select id="dropoff">
+    <option>الرمل الجنوبي</option>
+    <option>وسط المدينة</option>
+    <option>الصليبة</option>
+    <option>الزراعة</option>
+    <option>الشاطئ الأزرق</option>
+  </select>
+
+  <button onclick="requestTrip()">اطلب رحلة</button>
+
+  <div id="status"></div>
+
+  <a href="/index.html">← اذهب لصفحة تسجيل السائقين</a>
+
+  <script>
+    let currentTripId = null;
+    let pollTimer = null;
+
+    async function requestTrip() {
+      const pickup = document.getElementById("pickup").value;
+      const dropoff = document.getElementById("dropoff").value;
+
+      const res = await fetch("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pickup, dropoff, payment: "cash" })
+      });
+      const trip = await res.json();
+      currentTripId = trip.id;
+
+      showStatus(trip);
+
+      // نتابع حالة الرحلة كل ثانيتين تلقائياً
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(checkStatus, 2000);
+    }
+
+    async function checkStatus() {
+      const trips = await (await fetch("/api/trips")).json();
+      const trip = trips.find(t => t.id === currentTripId);
+      if (trip) showStatus(trip);
+      if (trip && trip.status === "completed") clearInterval(pollTimer);
+    }
+
+    function showStatus(trip) {
+      const labels = {
+        no_driver: "لا يوجد سائقون متاحون حالياً 😕",
+        assigned: "تم العثور على سائق! بانتظار تحركه",
+        arriving: "السائق في الطريق إليك",
+        arrived: "السائق وصل لنقطة الانطلاق",
+        ontrip: "الرحلة جارية الآن",
+        completed: "انتهت الرحلة ✅"
+      };
+      const box = document.getElementById("status");
+      box.style.display = "block";
+      box.innerHTML =
+        "<b>" + (labels[trip.status] || trip.status) + "</b><br>" +
+        "المسافة: " + trip.distanceKm + " كم<br>" +
+        "الأجرة: " + trip.fare + " ل.س";
+    }
+    // تسجيل الـ Service Worker حتى يصير التطبيق قابل للتثبيت
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js");
+}
+  </script>
+</body>
+</html>

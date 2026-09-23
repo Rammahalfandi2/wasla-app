@@ -1,0 +1,29 @@
+{
+  "drivers": [
+    {
+      "id": "1790154804289",
+      "name": "Rammah Alfandi",
+      "car": "kia",
+      "online": true,
+      "wallet": 28260,
+      "trips": 1,
+      "currentTripId": null
+    }
+  ],
+  "riders": [],
+  "trips": [
+    {
+      "id": "1790154831467",
+      "riderName": "راكب تجريبي",
+      "pickup": "وسط المدينة",
+      "dropoff": "الرمل الجنوبي",
+      "distanceKm": 8.6,
+      "fare": 14500,
+      "commission": 1740,
+      "payment": "cash",
+      "driverId": "1790154804289",
+      "status": "completed",
+      "createdAt": 1790154831467
+    }
+  ]
+}
